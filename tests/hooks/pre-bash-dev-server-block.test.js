@@ -22,11 +22,15 @@ function test(name, fn) {
   }
 }
 
-function runScript(command) {
+function runScript(command, env = {}) {
   const input = { tool_input: { command } };
   const result = spawnSync('node', [script], {
     encoding: 'utf8',
     input: JSON.stringify(input),
+    env: {
+      ...process.env,
+      ...env,
+    },
     timeout: 10000,
   });
   return { code: result.status || 0, stdout: result.stdout || '', stderr: result.stderr || '' };
@@ -82,6 +86,12 @@ function runTests() {
   (test('allows npm install (exit code 0)', () => {
     const result = runScript('npm install');
     assert.strictEqual(result.code, 0, `Expected exit code 0, got ${result.code}`);
+  }) ? passed++ : failed++);
+
+  (test('Codex mode allows npm install with empty stdout', () => {
+    const result = runScript('npm install', { PLUGIN_ROOT: process.cwd() });
+    assert.strictEqual(result.code, 0, `Expected exit code 0, got ${result.code}`);
+    assert.strictEqual(result.stdout, '', 'Expected empty stdout in Codex mode');
   }) ? passed++ : failed++);
 
   (test('allows npm test (exit code 0)', () => {

@@ -4,6 +4,7 @@
 const MAX_STDIN = 1024 * 1024;
 const path = require('path');
 const { splitShellSegments } = require('../lib/shell-split');
+const { passthroughStdout } = require('./hook-stdout-policy');
 const {
   extractCommandSubstitutions,
   extractSubshellGroups
@@ -225,5 +226,5 @@ process.stdin.on('end', () => {
     // ignore parse errors and pass through
   }
 
-  process.stdout.write(raw);
+  process.stdout.write(passthroughStdout(raw));
 });

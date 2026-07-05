@@ -18,6 +18,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const { spawn, spawnSync } = require('child_process');
+const { passthroughStdout } = require('./hook-stdout-policy');
 
 const MAX_STDIN = 1024 * 1024;
 const DEFAULT_TTL_MS = 2 * 60 * 1000;
@@ -712,7 +713,7 @@ async function main() {
   const target = extractMcpTarget(input) || (truncated ? extractMcpTargetFromRaw(rawInput) : null);
 
   if (!target) {
-    process.stdout.write(rawInput);
+    process.stdout.write(passthroughStdout(rawInput));
     process.exit(0);
     return;
   }
@@ -725,7 +726,7 @@ async function main() {
         : `[MCPHealthCheck] Hook input exceeded ${limit} bytes while checking ${target.server}; blocking ${target.tool || 'tool'} to avoid bypassing MCP health checks`
     ];
     emitLogs(logs);
-    process.stdout.write(rawInput);
+    process.stdout.write(passthroughStdout(rawInput));
     process.exit(shouldFailOpen() ? 0 : 2);
     return;
   }
@@ -739,7 +740,7 @@ async function main() {
     : await handlePreToolUse(rawInput, input, target, statePathValue, now);
 
   emitLogs(result.logs);
-  process.stdout.write(result.rawInput);
+  process.stdout.write(passthroughStdout(result.rawInput));
   process.exit(result.exitCode);
 }
 

@@ -194,6 +194,20 @@ async function runTests() {
     assert.strictEqual(result.stderr, '', 'Expected no stderr for non-MCP tool');
   })) passed++; else failed++;
 
+  if (test('Codex mode emits empty stdout for non-MCP no-op tools', () => {
+    const result = runHook(
+      { tool_name: 'Read', tool_input: { file_path: 'README.md' } },
+      {
+        CLAUDE_HOOK_EVENT_NAME: 'PreToolUse',
+        PLUGIN_ROOT: process.cwd()
+      }
+    );
+
+    assert.strictEqual(result.code, 0, 'Expected non-MCP tool to pass through');
+    assert.strictEqual(result.stdout, '', 'Expected empty stdout in Codex mode');
+    assert.strictEqual(result.stderr, '', 'Expected no stderr for non-MCP tool');
+  })) passed++; else failed++;
+
   if (test('blocks truncated MCP hook input by default', () => {
     const rawInput = JSON.stringify({ tool_name: 'mcp__flaky__search', tool_input: {} });
     const result = runRawHook(rawInput, {
@@ -204,6 +218,21 @@ async function runTests() {
 
     assert.strictEqual(result.code, 2, 'Expected truncated MCP input to block by default');
     assert.strictEqual(result.stdout, rawInput, 'Expected raw input passthrough on stdout');
+    assert.ok(result.stderr.includes('Hook input exceeded 512 bytes'), `Expected size warning, got: ${result.stderr}`);
+    assert.ok(/blocking search/i.test(result.stderr), `Expected blocking message, got: ${result.stderr}`);
+  })) passed++; else failed++;
+
+  if (test('Codex mode blocks truncated MCP hook input without raw stdout', () => {
+    const rawInput = JSON.stringify({ tool_name: 'mcp__flaky__search', tool_input: {} });
+    const result = runRawHook(rawInput, {
+      CLAUDE_HOOK_EVENT_NAME: 'PreToolUse',
+      ECC_HOOK_INPUT_TRUNCATED: '1',
+      ECC_HOOK_INPUT_MAX_BYTES: '512',
+      PLUGIN_ROOT: process.cwd()
+    });
+
+    assert.strictEqual(result.code, 2, 'Expected truncated MCP input to block by default');
+    assert.strictEqual(result.stdout, '', 'Expected empty stdout in Codex mode');
     assert.ok(result.stderr.includes('Hook input exceeded 512 bytes'), `Expected size warning, got: ${result.stderr}`);
     assert.ok(/blocking search/i.test(result.stderr), `Expected blocking message, got: ${result.stderr}`);
   })) passed++; else failed++;

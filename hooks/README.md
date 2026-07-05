@@ -128,7 +128,13 @@ Profiles:
 
 ### Writing Your Own Hook
 
-Hooks are shell commands that receive tool input as JSON on stdin and must output JSON on stdout.
+Hooks are shell commands that receive one JSON object on stdin. For Codex,
+successful no-op hooks should exit `0` with empty stdout. Only write stdout
+when returning event-supported hook output such as `hookSpecificOutput`,
+`decision: "block"`, `systemMessage`, or `continue: false`.
+
+ECC still preserves legacy Claude Code pass-through behavior in compatibility
+paths, but new hooks should not echo the original stdin as their success signal.
 
 **Basic structure:**
 
@@ -150,8 +156,8 @@ process.stdin.on('end', () => {
   // Block (PreToolUse only): exit with code 2
   // process.exit(2);
 
-  // Always output the original data to stdout
-  console.log(data);
+  // Success/no opinion: exit 0 with empty stdout.
+  process.exit(0);
 });
 ```
 
@@ -159,6 +165,20 @@ process.stdin.on('end', () => {
 - `0` — Success (continue execution)
 - `2` — Block the tool call (PreToolUse only)
 - Other non-zero — Error (logged but does not block)
+
+**Stdout contract:**
+- Codex: empty stdout means success/no opinion.
+- Codex `PreToolUse`: plain text stdout is ignored; return JSON for
+  `hookSpecificOutput.additionalContext`, `permissionDecision`, or
+  `updatedInput`.
+- Codex `PostToolUse`: plain text stdout is ignored; return JSON for
+  `additionalContext`, `decision: "block"`, or `continue: false`.
+- Codex `SessionStart` and `UserPromptSubmit`: plain text stdout can add
+  developer context, but structured `hookSpecificOutput.additionalContext` is
+  preferred.
+- Codex `Stop` and `SubagentStop`: stdout must be valid JSON when present.
+- Legacy Claude Code installs may still pass the raw input through stdout;
+  ECC's shared wrappers handle that host split.
 
 ### Hook Input Schema
 
@@ -180,7 +200,11 @@ interface HookInput {
 
 ### Async Hooks
 
-For hooks that should not block the main flow (e.g., background analysis):
+Codex parses `async` but currently skips command hooks that set
+`"async": true`. Do not use `async` in hooks intended to run under Codex.
+Use a short `timeout` and keep the hook fast.
+
+Legacy Claude Code configurations may still use async hooks:
 
 ```json
 {
@@ -191,7 +215,8 @@ For hooks that should not block the main flow (e.g., background analysis):
 }
 ```
 
-Async hooks run in the background. They cannot block tool execution.
+Async hooks run in the background in legacy Claude Code. They cannot block tool
+execution there.
 
 ## Common Hook Recipes
 
@@ -202,7 +227,7 @@ Async hooks run in the background. They cannot block tool execution.
   "matcher": "Edit",
   "hooks": [{
     "type": "command",
-    "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const ns=i.tool_input?.new_string||'';if(/TODO|FIXME|HACK/.test(ns)){console.error('[Hook] New TODO/FIXME added - consider creating an issue')}console.log(d)})\""
+    "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const ns=i.tool_input?.new_string||'';if(/TODO|FIXME|HACK/.test(ns)){console.error('[Hook] New TODO/FIXME added - consider creating an issue')}})\""
   }],
   "description": "Warn when adding TODO/FIXME comments"
 }
@@ -215,7 +240,7 @@ Async hooks run in the background. They cannot block tool execution.
   "matcher": "Write",
   "hooks": [{
     "type": "command",
-    "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const c=i.tool_input?.content||'';const lines=c.split('\\n').length;if(lines>800){console.error('[Hook] BLOCKED: File exceeds 800 lines ('+lines+' lines)');console.error('[Hook] Split into smaller, focused modules');process.exit(2)}console.log(d)})\""
+    "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const c=i.tool_input?.content||'';const lines=c.split('\\n').length;if(lines>800){console.error('[Hook] BLOCKED: File exceeds 800 lines ('+lines+' lines)');console.error('[Hook] Split into smaller, focused modules');process.exit(2)}})\""
   }],
   "description": "Block creation of files larger than 800 lines"
 }
@@ -228,7 +253,7 @@ Async hooks run in the background. They cannot block tool execution.
   "matcher": "Edit",
   "hooks": [{
     "type": "command",
-    "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const p=i.tool_input?.file_path||'';if(/\\.py$/.test(p)){const{execFileSync}=require('child_process');try{execFileSync('ruff',['format',p],{stdio:'pipe'})}catch(e){}}console.log(d)})\""
+    "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const p=i.tool_input?.file_path||'';if(/\\.py$/.test(p)){const{execFileSync}=require('child_process');try{execFileSync('ruff',['format',p],{stdio:'pipe'})}catch(e){}}})\""
   }],
   "description": "Auto-format Python files with ruff after edits"
 }
@@ -241,7 +266,7 @@ Async hooks run in the background. They cannot block tool execution.
   "matcher": "Write",
   "hooks": [{
     "type": "command",
-    "command": "node -e \"const fs=require('fs');let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const p=i.tool_input?.file_path||'';if(/src\\/.*\\.(ts|js)$/.test(p)&&!/\\.test\\.|\\.spec\\./.test(p)){const testPath=p.replace(/\\.(ts|js)$/,'.test.$1');if(!fs.existsSync(testPath)){console.error('[Hook] No test file found for: '+p);console.error('[Hook] Expected: '+testPath);console.error('[Hook] Consider writing tests first (/tdd)')}}console.log(d)})\""
+    "command": "node -e \"const fs=require('fs');let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const i=JSON.parse(d);const p=i.tool_input?.file_path||'';if(/src\\/.*\\.(ts|js)$/.test(p)&&!/\\.test\\.|\\.spec\\./.test(p)){const testPath=p.replace(/\\.(ts|js)$/,'.test.$1');if(!fs.existsSync(testPath)){console.error('[Hook] No test file found for: '+p);console.error('[Hook] Expected: '+testPath);console.error('[Hook] Consider writing tests first (/tdd)')}}})\""
   }],
   "description": "Remind to create tests when adding new source files"
 }

@@ -109,6 +109,20 @@ function runTests() {
     assert.strictEqual(result.stderr, '');
   })) passed++; else failed++;
 
+  if (test('Codex mode emits empty stdout when InsAIts is disabled', () => {
+    const result = run({
+      input: '{"tool_name":"Bash"}',
+      env: {
+        ECC_ENABLE_INSAITS: '',
+        PLUGIN_ROOT: process.cwd(),
+      },
+    });
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(result.stderr, '');
+  })) passed++; else failed++;
+
   if (test('enabled clean monitor exit preserves original stdin', () => {
     const tempDir = createTempDir();
     try {
@@ -125,6 +139,28 @@ function runTests() {
 
       assert.strictEqual(result.status, 0, result.stderr);
       assert.strictEqual(result.stdout, '{"tool_name":"Bash","tool_input":{"command":"npm install"}}');
+    } finally {
+      cleanup(tempDir);
+    }
+  })) passed++; else failed++;
+
+  if (test('Codex mode enabled clean monitor exit emits empty stdout', () => {
+    const tempDir = createTempDir();
+    try {
+      writeFakePython(path.join(tempDir, 'bin'));
+
+      const result = run({
+        input: '{"tool_name":"Bash","tool_input":{"command":"npm install"}}',
+        env: {
+          ECC_ENABLE_INSAITS: '1',
+          FAKE_INSAITS_MODE: 'clean',
+          PATH: path.join(tempDir, 'bin'),
+          PLUGIN_ROOT: process.cwd(),
+        },
+      });
+
+      assert.strictEqual(result.status, 0, result.stderr);
+      assert.strictEqual(result.stdout, '');
     } finally {
       cleanup(tempDir);
     }

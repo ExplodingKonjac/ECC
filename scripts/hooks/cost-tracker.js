@@ -42,6 +42,7 @@ const os = require('os');
 const path = require('path');
 const { ensureDir, appendFile, getClaudeDir } = require('../lib/utils');
 const { sanitizeSessionId } = require('../lib/session-bridge');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 const HARNESS_COST_MAX_AGE_SECONDS = 300;
 
@@ -211,11 +212,11 @@ process.stdin.on('end', () => {
     // Non-blocking — never fail the Stop hook.
   }
 
-  // Pass stdin through (ECC hook convention) — but never echo truncated
+  // Pass stdin through only for legacy harnesses — but never echo truncated
   // stdin: invalid JSON on stdout is reported as a Stop hook failure (#2090).
   if (truncated) {
     process.stderr.write('[Hook] cost-tracker: stdin exceeded 1MB; suppressing pass-through (fail-open)\n');
     return;
   }
-  process.stdout.write(raw);
+  process.stdout.write(defaultSuccessStdout(raw));
 });

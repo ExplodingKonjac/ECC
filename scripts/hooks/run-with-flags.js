@@ -13,6 +13,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { isHookEnabled, isDryRun } = require('../lib/hook-flags');
 const { buildPreToolUseAdditionalContext } = require('./pretooluse-visible-output');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 const MAX_STDIN = 1024 * 1024;
 
@@ -74,10 +75,10 @@ function resolveHookResult(raw, output) {
     if (Object.prototype.hasOwnProperty.call(output, 'stdout')) {
       return { stdout: String(output.stdout ?? ''), exitCode };
     }
-    return { stdout: exitCode === 0 ? raw : '', exitCode };
+    return { stdout: exitCode === 0 ? defaultSuccessStdout(raw) : '', exitCode };
   }
 
-  return { stdout: raw, exitCode: 0 };
+  return { stdout: defaultSuccessStdout(raw), exitCode: 0 };
 }
 
 function resolveLegacySpawnStdout(raw, result) {
@@ -87,13 +88,16 @@ function resolveLegacySpawnStdout(raw, result) {
   }
 
   if (Number.isInteger(result.status) && result.status === 0) {
-    return raw;
+    return defaultSuccessStdout(raw);
   }
 
   return '';
 }
 
 function getPluginRoot() {
+  if (process.env.PLUGIN_ROOT && process.env.PLUGIN_ROOT.trim()) {
+    return process.env.PLUGIN_ROOT;
+  }
   if (process.env.CLAUDE_PLUGIN_ROOT && process.env.CLAUDE_PLUGIN_ROOT.trim()) {
     return process.env.CLAUDE_PLUGIN_ROOT;
   }
@@ -157,19 +161,19 @@ async function main() {
   }
 
   if (!hookId || !relScriptPath) {
-    exitWithStdout(sanitizeEcho(raw), 0);
+    exitWithStdout(sanitizeEcho(defaultSuccessStdout(raw)), 0);
     return;
   }
 
   if (!isHookEnabled(hookId, { profiles: profilesCsv })) {
-    exitWithStdout(sanitizeEcho(raw), 0);
+    exitWithStdout(sanitizeEcho(defaultSuccessStdout(raw)), 0);
     return;
   }
 
   if (isDryRun()) {
     const preview = buildDryRunPreview(hookId, relScriptPath, profilesCsv, raw);
     process.stderr.write(preview);
-    process.stdout.write(raw);
+    process.stdout.write(sanitizeEcho(defaultSuccessStdout(raw)));
     process.exit(0);
   }
 
@@ -180,13 +184,13 @@ async function main() {
   // Prevent path traversal outside the plugin root
   if (!scriptPath.startsWith(resolvedRoot + path.sep)) {
     process.stderr.write(`[Hook] Path traversal rejected for ${hookId}: ${scriptPath}\n`);
-    exitWithStdout(sanitizeEcho(raw), 0);
+    exitWithStdout(sanitizeEcho(defaultSuccessStdout(raw)), 0);
     return;
   }
 
   if (!fs.existsSync(scriptPath)) {
     process.stderr.write(`[Hook] Script not found for ${hookId}: ${scriptPath}\n`);
-    exitWithStdout(sanitizeEcho(raw), 0);
+    exitWithStdout(sanitizeEcho(defaultSuccessStdout(raw)), 0);
     return;
   }
 
@@ -222,7 +226,7 @@ async function main() {
       exitWithStdout(sanitizeEcho(result.stdout), result.exitCode);
     } catch (runErr) {
       process.stderr.write(`[Hook] run() error for ${hookId}: ${runErr.message}\n`);
-      exitWithStdout(sanitizeEcho(raw), 0);
+      exitWithStdout(sanitizeEcho(defaultSuccessStdout(raw)), 0);
     }
     return;
   }
@@ -233,6 +237,7 @@ async function main() {
     encoding: 'utf8',
     env: {
       ...process.env,
+      PLUGIN_ROOT: pluginRoot,
       CLAUDE_PLUGIN_ROOT: pluginRoot,
       ECC_PLUGIN_ROOT: pluginRoot,
       ECC_HOOK_ID: hookId,

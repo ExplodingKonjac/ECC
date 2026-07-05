@@ -36,6 +36,8 @@ function run(args = [], options = {}) {
       ...process.env,
       CLAUDE_PLUGIN_ROOT: options.root || '',
       ECC_PLUGIN_ROOT: options.eccRoot || '',
+      PLUGIN_ROOT: options.pluginRoot || '',
+      PLUGIN_DATA: options.pluginData || '',
       ...(options.env || {}),
     },
     cwd: options.cwd || process.cwd(),
@@ -67,6 +69,23 @@ function runTests() {
     assert.strictEqual(result.status, 0);
     assert.strictEqual(result.stdout, '{"ok":true}');
     assert.strictEqual(result.stderr, '');
+  })) passed++; else failed++;
+
+  if (test('codex mode emits empty stdout when required bootstrap inputs are missing', () => {
+    const root = createTempDir();
+    try {
+      const result = run([], {
+        input: '{"ok":true}',
+        pluginRoot: root,
+        env: { ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+      assert.strictEqual(result.stderr, '');
+    } finally {
+      cleanup(root);
+    }
   })) passed++; else failed++;
 
   if (test('normalizes Windows Git Bash POSIX drive roots', () => {
@@ -160,6 +179,50 @@ process.stdout.write(JSON.stringify({
     }
   })) passed++; else failed++;
 
+  if (test('codex node mode emits empty stdout when child exits cleanly without stdout', () => {
+    const root = createTempDir();
+    try {
+      writeFile(root, path.join('scripts', 'silent.js'), 'process.exit(0);\n');
+
+      const result = run(['node', path.join('scripts', 'silent.js')], {
+        pluginRoot: root,
+        input: 'raw-input',
+        env: { ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
+  if (test('codex mode prefers PLUGIN_ROOT and forwards intentional child stdout', () => {
+    const root = createTempDir();
+    try {
+      writeFile(root, path.join('scripts', 'context.js'), `
+process.stdout.write(JSON.stringify({
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    additionalContext: 'Codex-visible context'
+  }
+}));
+`);
+
+      const result = run(['node', path.join('scripts', 'context.js')], {
+        pluginRoot: root,
+        input: 'raw-input',
+        env: { ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+      const parsed = JSON.parse(result.stdout);
+
+      assert.strictEqual(result.status, 0, result.stderr);
+      assert.strictEqual(parsed.hookSpecificOutput.additionalContext, 'Codex-visible context');
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
   if (test('node mode forwards child stdout and exit status for blocking hooks', () => {
     const root = createTempDir();
     try {
@@ -244,6 +307,25 @@ process.exit(7);
     }
   })) passed++; else failed++;
 
+  if (test('codex shell mode fails open without raw stdin when no shell runtime is available', () => {
+    const root = createTempDir();
+    try {
+      writeFile(root, path.join('scripts', 'hook.sh'), 'printf unreachable\n');
+
+      const result = run(['shell', path.join('scripts', 'hook.sh')], {
+        pluginRoot: root,
+        input: 'raw-input',
+        env: { PATH: '', BASH: '', ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+      assert.ok(result.stderr.includes('shell runtime unavailable'));
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
   if (test('rejects target paths that escape the plugin root', () => {
     const root = createTempDir();
     try {
@@ -260,6 +342,23 @@ process.exit(7);
     }
   })) passed++; else failed++;
 
+  if (test('codex mode rejects target paths without raw stdin passthrough', () => {
+    const root = createTempDir();
+    try {
+      const result = run(['node', path.join('..', 'outside.js')], {
+        pluginRoot: root,
+        input: 'raw-input',
+        env: { ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+      assert.ok(result.stderr.includes('Path traversal rejected'));
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
   if (test('unknown mode fails open with stderr warning', () => {
     const root = createTempDir();
     try {
@@ -270,6 +369,23 @@ process.exit(7);
 
       assert.strictEqual(result.status, 0);
       assert.strictEqual(result.stdout, 'raw-input');
+      assert.ok(result.stderr.includes('unknown bootstrap mode: python'));
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
+  if (test('codex unknown mode fails open without raw stdin passthrough', () => {
+    const root = createTempDir();
+    try {
+      const result = run(['python', 'hook.py'], {
+        pluginRoot: root,
+        input: 'raw-input',
+        env: { ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
       assert.ok(result.stderr.includes('unknown bootstrap mode: python'));
     } finally {
       cleanup(root);

@@ -30,6 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { resolveEccRoot } = require('../lib/resolve-ecc-root');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 // Read the raw JSON event from stdin
 const raw = fs.readFileSync(0, 'utf8');
@@ -59,7 +60,7 @@ if (fs.existsSync(script)) {
   if (stdout) {
     process.stdout.write(stdout);
   } else {
-    process.stdout.write(raw);
+    process.stdout.write(defaultSuccessStdout(raw));
   }
 
   if (result.stderr) {
@@ -82,4 +83,4 @@ if (fs.existsSync(script)) {
 process.stderr.write(
   '[SessionStart] WARNING: could not resolve ECC plugin root; skipping session-start hook\n'
 );
-process.stdout.write(raw);
+process.stdout.write(defaultSuccessStdout(raw));

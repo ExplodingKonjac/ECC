@@ -13,6 +13,7 @@
 
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { passthroughStdout } = require('./hook-stdout-policy');
 
 const MAX_STDIN = 1024 * 1024;
 const WINDOWS_SHELL_UNSAFE_PATH_CHARS = /[&|<>^%!]/;
@@ -31,7 +32,7 @@ process.stdin.on('data', chunk => {
 
 process.stdin.on('end', () => {
   if (!isEnabled(process.env.ECC_ENABLE_INSAITS)) {
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
     process.exit(0);
   }
 
@@ -76,7 +77,7 @@ process.stdin.on('end', () => {
 
   if (!result || (result.error && result.error.code === 'ENOENT')) {
     process.stderr.write('[InsAIts] python3/python not found. Install Python 3.9+ and: pip install insa-its\n');
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
     process.exit(0);
   }
 
@@ -84,7 +85,7 @@ process.stdin.on('end', () => {
   // know the security monitor did not run - fail-open with a warning.
   if (result.error) {
     process.stderr.write(`[InsAIts] Security monitor failed to run: ${result.error.message}\n`);
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
     process.exit(0);
   }
 
@@ -94,7 +95,7 @@ process.stdin.on('end', () => {
   if (!Number.isInteger(result.status)) {
     const signal = result.signal || 'unknown';
     process.stderr.write(`[InsAIts] Security monitor killed (signal: ${signal}). Tool execution continues.\n`);
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
     process.exit(0);
   }
 
@@ -104,14 +105,14 @@ process.stdin.on('end', () => {
     const detail = (result.stderr || result.stdout || '').trim();
     const suffix = detail ? `: ${detail}` : '';
     process.stderr.write(`[InsAIts] Security monitor exited with status ${result.status}${suffix}\n`);
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
     process.exit(0);
   }
 
   if (result.stdout) {
     process.stdout.write(result.stdout);
   } else if (result.status === 0) {
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
   }
   if (result.stderr) process.stderr.write(result.stderr);
 

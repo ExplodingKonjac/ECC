@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 const MAX_STDIN = 1024 * 1024;
 let raw = '';
@@ -165,5 +166,5 @@ process.stdin.on('end', () => {
     process.exit(2);
   }
 
-  process.stdout.write(raw);
+  process.stdout.write(defaultSuccessStdout(raw));
 });

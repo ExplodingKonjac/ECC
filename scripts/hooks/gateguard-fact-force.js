@@ -26,6 +26,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { extractCommandSubstitutions, extractSubshellGroups, extractBraceGroups } = require('../lib/shell-substitution');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 // Session state — scoped per session to avoid cross-session races.
 const STATE_DIR = process.env.GATEGUARD_STATE_DIR || path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.gateguard');
@@ -38,6 +39,10 @@ const READ_HEARTBEAT_MS = 60 * 1000;
 // Maximum checked entries to prevent unbounded growth
 const MAX_CHECKED_ENTRIES = 500;
 const MAX_SESSION_KEYS = 50;
+
+function allowOutput(raw) {
+  return defaultSuccessStdout(raw);
+}
 const ROUTINE_BASH_SESSION_KEY = '__bash_session__';
 const EDIT_WRITE_HOOK_ID = 'pre:edit-write:gateguard-fact-force';
 const BASH_HOOK_ID = 'pre:bash:gateguard-fact-force';
@@ -900,7 +905,7 @@ const DEFAULT_FULL_DENIALS = 3;
 function getFullDenialBudget() {
   const raw = Number.parseInt(process.env.GATEGUARD_FACT_FORCE_FULL_DENIALS || '', 10);
   if (Number.isInteger(raw) && raw >= 0) {
-    return raw;
+    return allowOutput(raw);
   }
   return DEFAULT_FULL_DENIALS;
 }
@@ -1172,11 +1177,11 @@ function run(rawInput) {
   try {
     data = typeof rawInput === 'string' ? JSON.parse(rawInput) : rawInput;
   } catch (_) {
-    return rawInput; // allow on parse error
+    return allowOutput(rawInput); // allow on parse error
   }
 
   if (isGateGuardDisabled()) {
-    return rawInput;
+    return allowOutput(rawInput);
   }
 
   activeStateFile = null;
@@ -1192,11 +1197,11 @@ function run(rawInput) {
   if (toolName === 'Edit' || toolName === 'Write') {
     const filePath = toolInput.file_path || '';
     if (!filePath || isClaudeSettingsPath(filePath) || isExemptPath(filePath)) {
-      return rawInput; // allow
+      return allowOutput(rawInput); // allow
     }
 
     if (inSubagent) {
-      return rawInput; // parent session already passed the first-touch file gate
+      return allowOutput(rawInput); // parent session already passed the first-touch file gate
     }
 
     if (!isChecked(filePath)) {
@@ -1211,12 +1216,12 @@ function run(rawInput) {
       return denyResult(toolName === 'Edit' ? editGateMsg(filePath) : writeGateMsg(filePath));
     }
 
-    return rawInput; // allow
+    return allowOutput(rawInput); // allow
   }
 
   if (toolName === 'MultiEdit') {
     if (inSubagent) {
-      return rawInput; // parent session already passed the first-touch file gate
+      return allowOutput(rawInput); // parent session already passed the first-touch file gate
     }
 
     const edits = toolInput.edits || [];
@@ -1233,13 +1238,13 @@ function run(rawInput) {
         return denyResult(editGateMsg(filePath));
       }
     }
-    return rawInput; // allow
+    return allowOutput(rawInput); // allow
   }
 
   if (toolName === 'Bash') {
     const command = toolInput.command || '';
     if (isReadOnlyGitIntrospection(command)) {
-      return rawInput;
+      return allowOutput(rawInput);
     }
 
     if (isDestructiveBash(command)) {
@@ -1251,7 +1256,7 @@ function run(rawInput) {
         }
         return denyResult(destructiveBashMsg(), { includeRecoveryHint: false });
       }
-      return rawInput; // allow retry after facts presented
+      return allowOutput(rawInput); // allow retry after facts presented
     }
 
     // Operator opt-out: skip the routine-bash gate entirely. The destructive
@@ -1259,7 +1264,7 @@ function run(rawInput) {
     // (Cursor, OpenCode, etc.) where the once-per-session routine gate is
     // friction without signal.
     if (isRoutineBashGateDisabled()) {
-      return rawInput; // routine gate opted out via env
+      return allowOutput(rawInput); // routine gate opted out via env
     }
 
     if (!isChecked(ROUTINE_BASH_SESSION_KEY)) {
@@ -1269,10 +1274,10 @@ function run(rawInput) {
       return denyResult(routineBashMsg(), { hookIds: [BASH_HOOK_ID] });
     }
 
-    return rawInput; // allow
+    return allowOutput(rawInput); // allow
   }
 
-  return rawInput; // allow
+  return allowOutput(rawInput); // allow
 }
 
 module.exports = { run };

@@ -15,6 +15,8 @@
 
 'use strict';
 
+const { passthroughStdout } = require('./hook-stdout-policy');
+
 const MAX_STDIN = 1024 * 1024;
 let raw = '';
 
@@ -541,6 +543,6 @@ if (require.main === module) {
       process.exit(2);
     }
 
-    process.stdout.write(raw);
+    process.stdout.write(passthroughStdout(raw));
   });
 }

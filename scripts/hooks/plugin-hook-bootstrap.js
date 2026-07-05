@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { ensureAgentDataHomeEnv } = require('../lib/agent-data-home');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 function readStdinRaw() {
   try {
@@ -28,7 +29,7 @@ function passthrough(raw, result) {
   }
 
   if (!Number.isInteger(result?.status) || result.status === 0) {
-    process.stdout.write(raw);
+    process.stdout.write(defaultSuccessStdout(raw));
   }
 }
 
@@ -137,6 +138,7 @@ function spawnNode(rootDir, relPath, raw, args) {
   ensureAgentDataHomeEnv();
   const hookEnv = {
     ...process.env,
+    PLUGIN_ROOT: rootDir,
     CLAUDE_PLUGIN_ROOT: rootDir,
     ECC_PLUGIN_ROOT: rootDir,
   };
@@ -167,6 +169,7 @@ function spawnShell(rootDir, relPath, raw, args) {
   ensureAgentDataHomeEnv();
   const hookEnv = {
     ...process.env,
+    PLUGIN_ROOT: rootDir,
     CLAUDE_PLUGIN_ROOT: rootDir,
     ECC_PLUGIN_ROOT: rootDir,
   };
@@ -214,11 +217,11 @@ function main() {
   const [, , mode, relPath, ...args] = process.argv;
   const raw = readStdinRaw();
   const rootDir = normalizePluginRootForPlatform(
-    process.env.CLAUDE_PLUGIN_ROOT || process.env.ECC_PLUGIN_ROOT
+    process.env.PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT || process.env.ECC_PLUGIN_ROOT
   );
 
   if (!mode || !relPath || !rootDir) {
-    process.stdout.write(raw);
+    process.stdout.write(defaultSuccessStdout(raw));
     process.exit(0);
   }
 
@@ -230,12 +233,12 @@ function main() {
       result = spawnShell(rootDir, relPath, raw, args);
     } else {
       writeStderr(`[Hook] unknown bootstrap mode: ${mode}\n`);
-      process.stdout.write(raw);
+      process.stdout.write(defaultSuccessStdout(raw));
       process.exit(0);
     }
   } catch (error) {
     writeStderr(`[Hook] bootstrap resolution failed: ${error.message}\n`);
-    process.stdout.write(raw);
+    process.stdout.write(defaultSuccessStdout(raw));
     process.exit(0);
   }
 

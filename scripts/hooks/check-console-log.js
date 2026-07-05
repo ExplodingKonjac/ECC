@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const { isGitRepo, getGitModifiedFiles, readFile, log } = require('../lib/utils');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 // Files where console.log is expected and should not trigger warnings
 const EXCLUDED_PATTERNS = [
@@ -42,7 +43,7 @@ process.stdin.on('data', chunk => {
 });
 
 /**
- * Echo stdin back (ECC pass-through convention), then exit once the pipe has
+ * Echo stdin back only for legacy harnesses, then exit once the pipe has
  * flushed. Truncated stdin is never echoed: a JSON document cut mid-stream is
  * reported by the harness as a Stop hook JSON validation failure (#2090).
  */
@@ -54,7 +55,11 @@ function passThroughAndExit() {
   if (!data) {
     process.exit(0);
   }
-  process.stdout.write(data, () => process.exit(0));
+  const stdout = defaultSuccessStdout(data);
+  if (!stdout) {
+    process.exit(0);
+  }
+  process.stdout.write(stdout, () => process.exit(0));
 }
 
 process.stdin.on('end', () => {
@@ -85,6 +90,6 @@ process.stdin.on('end', () => {
     log(`[Hook] check-console-log error: ${err.message}`);
   }
 
-  // Always output the original data (unless truncated)
+  // Output according to the active hook host policy.
   passThroughAndExit();
 });

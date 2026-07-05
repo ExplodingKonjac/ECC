@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 const OBSERVE_RELATIVE_PATH = path.join('skills', 'continuous-learning-v2', 'hooks', 'observe.sh');
 const DEFAULT_TIMEOUT_MS = 9000;
@@ -167,12 +168,12 @@ function emitHookResult(raw, output) {
     if (Object.prototype.hasOwnProperty.call(output, 'stdout')) {
       process.stdout.write(String(output.stdout ?? ''));
     } else if (!Number.isInteger(output.exitCode) || output.exitCode === 0) {
-      process.stdout.write(raw);
+      process.stdout.write(defaultSuccessStdout(raw));
     }
     return Number.isInteger(output.exitCode) ? output.exitCode : 0;
   }
 
-  process.stdout.write(raw);
+  process.stdout.write(defaultSuccessStdout(raw));
   return 0;
 }
 

@@ -14,6 +14,7 @@
 'use strict';
 
 const path = require('path');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 const { buildPreToolUseAdditionalContext } = require('./pretooluse-visible-output');
 
 const MAX_STDIN = 1024 * 1024;
@@ -95,7 +96,7 @@ function main() {
     if (Object.prototype.hasOwnProperty.call(result, 'additionalContext')) {
       process.stdout.write(buildPreToolUseAdditionalContext(result.additionalContext));
     } else {
-      process.stdout.write(data);
+      process.stdout.write(defaultSuccessStdout(data));
     }
   });
 }

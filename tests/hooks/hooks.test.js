@@ -2499,15 +2499,32 @@ async function runTests() {
   else failed++;
 
   if (
-    test('SessionEnd marker hook is async and cleanup-safe', () => {
+    test('SessionEnd marker hook is timeout-bound and Codex-runnable', () => {
       const hooksPath = path.join(__dirname, '..', '..', 'hooks', 'hooks.json');
       const hooks = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
       const sessionEndHooks = hooks.hooks.SessionEnd.flatMap(entry => entry.hooks);
       const markerHook = sessionEndHooks.find(hook => hook.command.includes('session-end-marker.js'));
 
       assert.ok(markerHook, 'SessionEnd should invoke session-end-marker.js');
-      assert.strictEqual(markerHook.async, true, 'SessionEnd marker hook should run async during cleanup');
+      assert.ok(!('async' in markerHook), 'Codex skips async command hooks, so SessionEnd marker must not set async');
       assert.ok(Number.isInteger(markerHook.timeout) && markerHook.timeout > 0, 'SessionEnd marker hook should define a timeout');
+    })
+  )
+    passed++;
+  else failed++;
+
+  if (
+    test('hooks.json does not use async command hooks for Codex compatibility', () => {
+      const hooksPath = path.join(__dirname, '..', '..', 'hooks', 'hooks.json');
+      const hooks = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+
+      for (const [eventName, hookArray] of Object.entries(hooks.hooks)) {
+        for (const entry of hookArray) {
+          for (const hook of entry.hooks) {
+            assert.ok(!('async' in hook), `${eventName}/${entry.id || entry.matcher || 'hook'} must not set async`);
+          }
+        }
+      }
     })
   )
     passed++;

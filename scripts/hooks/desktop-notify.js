@@ -22,6 +22,7 @@
 const { spawnSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const { isMacOS, log } = require('../lib/utils');
+const { defaultSuccessStdout } = require('./hook-stdout-policy');
 
 const TITLE = 'Claude Code';
 const MAX_BODY_LENGTH = 100;
@@ -227,7 +228,7 @@ function run(raw) {
     log(`[DesktopNotify] Error: ${err.message}`);
   }
 
-  return raw;
+  return defaultSuccessStdout(raw);
 }
 
 module.exports = { run };
