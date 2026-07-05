@@ -197,6 +197,27 @@ process.stdout.write(JSON.stringify({
     }
   })) passed++; else failed++;
 
+  if (test('codex node mode suppresses child stdout that echoes raw input', () => {
+    const root = createTempDir();
+    try {
+      writeFile(root, path.join('scripts', 'echo-raw.js'), `
+const fs = require('fs');
+process.stdout.write(fs.readFileSync(0, 'utf8'));
+`);
+
+      const result = run(['node', path.join('scripts', 'echo-raw.js')], {
+        pluginRoot: root,
+        input: '{"tool_name":"Edit","tool_input":{"file_path":"x.js"}}',
+        env: { ECC_HOOK_STDOUT_MODE: 'codex' },
+      });
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
   if (test('codex mode prefers PLUGIN_ROOT and forwards intentional child stdout', () => {
     const root = createTempDir();
     try {

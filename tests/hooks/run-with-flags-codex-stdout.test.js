@@ -94,6 +94,30 @@ module.exports = {
     }
   })) passed++; else failed++;
 
+  if (test('run export that echoes raw input emits empty stdout in Codex mode', () => {
+    const root = createTempDir();
+    try {
+      writeHook(root, path.join('scripts', 'hooks', 'echo-raw.js'), `
+module.exports = {
+  run(raw) {
+    return { stdout: raw, exitCode: 0 };
+  }
+};
+`);
+
+      const input = '{"tool_name":"Edit","tool_input":{"file_path":"x.js"}}';
+      const result = run(['post:echo-raw', 'scripts/hooks/echo-raw.js', 'standard'], {
+        root,
+        input,
+      });
+
+      assert.strictEqual(result.status, 0, result.stderr);
+      assert.strictEqual(result.stdout, '');
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
   if (test('additionalContext remains valid Codex JSON stdout', () => {
     const root = createTempDir();
     try {
@@ -127,6 +151,27 @@ module.exports = {
       const result = run(['post:legacy', 'scripts/hooks/legacy-silent.js', 'standard'], {
         root,
         input: '{"tool_name":"Bash","tool_response":{"output":"ok"}}',
+      });
+
+      assert.strictEqual(result.status, 0, result.stderr);
+      assert.strictEqual(result.stdout, '');
+    } finally {
+      cleanup(root);
+    }
+  })) passed++; else failed++;
+
+  if (test('legacy spawned hook that echoes raw input emits empty stdout in Codex mode', () => {
+    const root = createTempDir();
+    try {
+      writeHook(root, path.join('scripts', 'hooks', 'legacy-echo-raw.js'), `
+const fs = require('fs');
+process.stdout.write(fs.readFileSync(0, 'utf8'));
+`);
+
+      const input = '{"tool_name":"Edit","tool_input":{"file_path":"x.js"}}';
+      const result = run(['post:legacy-echo-raw', 'scripts/hooks/legacy-echo-raw.js', 'standard'], {
+        root,
+        input,
       });
 
       assert.strictEqual(result.status, 0, result.stderr);

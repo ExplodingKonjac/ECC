@@ -26,7 +26,22 @@ function defaultSuccessStdout(raw, env = process.env) {
   return passthroughStdout(raw, env);
 }
 
+function codexSafeChildStdout(raw, stdout, env = process.env) {
+  const output = String(stdout ?? '');
+  if (!isCodexStdoutMode(env)) {
+    return output;
+  }
+
+  const input = String(raw ?? '');
+  if (output === input || (output.trim() && output.trim() === input.trim())) {
+    return '';
+  }
+
+  return output;
+}
+
 module.exports = {
+  codexSafeChildStdout,
   defaultSuccessStdout,
   getHookStdoutMode,
   isCodexStdoutMode,

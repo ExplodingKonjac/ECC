@@ -13,7 +13,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { isHookEnabled, isDryRun } = require('../lib/hook-flags');
 const { buildPreToolUseAdditionalContext } = require('./pretooluse-visible-output');
-const { defaultSuccessStdout } = require('./hook-stdout-policy');
+const { codexSafeChildStdout, defaultSuccessStdout } = require('./hook-stdout-policy');
 
 const MAX_STDIN = 1024 * 1024;
 
@@ -62,7 +62,7 @@ function exitWithStdout(text, exitCode) {
 
 function resolveHookResult(raw, output) {
   if (typeof output === 'string' || Buffer.isBuffer(output)) {
-    return { stdout: String(output), exitCode: 0 };
+    return { stdout: codexSafeChildStdout(raw, output), exitCode: 0 };
   }
 
   if (output && typeof output === 'object') {
@@ -73,7 +73,7 @@ function resolveHookResult(raw, output) {
       return { stdout: buildPreToolUseAdditionalContext(output.additionalContext), exitCode };
     }
     if (Object.prototype.hasOwnProperty.call(output, 'stdout')) {
-      return { stdout: String(output.stdout ?? ''), exitCode };
+      return { stdout: codexSafeChildStdout(raw, output.stdout), exitCode };
     }
     return { stdout: exitCode === 0 ? defaultSuccessStdout(raw) : '', exitCode };
   }
@@ -84,7 +84,7 @@ function resolveHookResult(raw, output) {
 function resolveLegacySpawnStdout(raw, result) {
   const stdout = typeof result.stdout === 'string' ? result.stdout : '';
   if (stdout) {
-    return stdout;
+    return codexSafeChildStdout(raw, stdout);
   }
 
   if (Number.isInteger(result.status) && result.status === 0) {

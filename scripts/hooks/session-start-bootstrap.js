@@ -30,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { resolveEccRoot } = require('../lib/resolve-ecc-root');
-const { defaultSuccessStdout } = require('./hook-stdout-policy');
+const { codexSafeChildStdout, defaultSuccessStdout } = require('./hook-stdout-policy');
 
 // Read the raw JSON event from stdin
 const raw = fs.readFileSync(0, 'utf8');
@@ -58,7 +58,7 @@ if (fs.existsSync(script)) {
 
   const stdout = typeof result.stdout === 'string' ? result.stdout : '';
   if (stdout) {
-    process.stdout.write(stdout);
+    process.stdout.write(codexSafeChildStdout(raw, stdout));
   } else {
     process.stdout.write(defaultSuccessStdout(raw));
   }

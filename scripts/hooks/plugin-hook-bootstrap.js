@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { ensureAgentDataHomeEnv } = require('../lib/agent-data-home');
-const { defaultSuccessStdout } = require('./hook-stdout-policy');
+const { codexSafeChildStdout, defaultSuccessStdout } = require('./hook-stdout-policy');
 
 function readStdinRaw() {
   try {
@@ -24,7 +24,7 @@ function writeStderr(stderr) {
 function passthrough(raw, result) {
   const stdout = typeof result?.stdout === 'string' ? result.stdout : '';
   if (stdout) {
-    process.stdout.write(stdout);
+    process.stdout.write(codexSafeChildStdout(raw, stdout));
     return;
   }
 
